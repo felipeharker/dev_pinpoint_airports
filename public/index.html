@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Pinpoint Airports</title>
+  <meta name="description" content="A three-letter airport code appears on the departures board. Drop a pin on a blank world map — the closer you land, the more points you score.">
+  <meta property="og:title" content="Pinpoint Airports">
+  <meta property="og:description" content="Find the airport from its three-letter code on a blank world map. Five rounds, up to 1,000 points each.">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#f2eee6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js" defer></script>
+  <script src="js/airports.js" defer></script>
+  <script src="js/game.js" defer></script>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <button class="icon-btn back" id="back" type="button" aria-label="Back to start" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+      </button>
+      <a class="brand" href="./" id="brand">
+        <span>Pinpoint</span>
+        <svg class="brand-plane" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15.5v-2l-8-5V3.8a1.5 1.5 0 0 0-3 0V8.5l-8 5v2l8-2.5V18l-2 1.5V21l3.5-1 3.5 1v-1.5L13 18v-5z" /></svg>
+        <span>Airports</span>
+      </a>
+      <div class="units" role="group" aria-label="Distance units">
+        <button type="button" data-units="mi">MI</button>
+        <button type="button" data-units="km">KM</button>
+      </div>
+    </header>
+
+    <main>
+      <!-- Start screen -->
+      <section class="screen" id="home">
+        <p class="kicker" id="home-kicker">Map games · Daily</p>
+        <h1>Find the airport.</h1>
+
+        <div class="board board-demo" aria-hidden="true">
+          <div class="board-meta">
+            <span class="board-label">Departures</span>
+            <span class="board-sub" id="demo-sub">Gate ??</span>
+          </div>
+          <div class="flaps" id="demo-flaps"></div>
+        </div>
+
+        <p class="lede">A three-letter airport code flips onto the board. Drop a pin where you think that airport is on a blank world map. The closer you land, the more points you earn.</p>
+
+        <div class="actions">
+          <button class="btn btn-primary" id="play-daily" type="button">Start today's flight →</button>
+          <p class="daily-note" id="daily-note"></p>
+        </div>
+
+        <div class="random-block">
+          <div class="random-head">
+            <span class="kicker">Random flight</span>
+            <div class="seg" role="group" aria-label="Difficulty" id="difficulty">
+              <button type="button" data-difficulty="easy">Easy</button>
+              <button type="button" data-difficulty="normal">Normal</button>
+              <button type="button" data-difficulty="hard">Hard</button>
+            </div>
+          </div>
+          <p class="difficulty-note" id="difficulty-note"></p>
+          <button class="btn btn-secondary" id="play-random" type="button">Random flight →</button>
+        </div>
+
+        <dl class="rules" id="rules"></dl>
+        <p class="stats" id="stats"></p>
+      </section>
+
+      <!-- Game screen -->
+      <section class="screen" id="game" hidden>
+        <div class="status">
+          <span id="round-label">Round 1 / 5</span>
+          <span id="score-label">Score · 0</span>
+        </div>
+
+        <div class="board">
+          <div class="board-meta">
+            <span class="board-label" id="board-label">Find this airport</span>
+            <span class="board-sub" id="board-sub"></span>
+          </div>
+          <div class="flaps" id="flaps" role="img"></div>
+        </div>
+
+        <div class="map-wrap" id="map-wrap">
+          <svg id="map" role="application" aria-label="World map. Click to drop your pin."></svg>
+          <div class="map-tools">
+            <button class="icon-btn" type="button" data-zoom="in" aria-label="Zoom in">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+            </button>
+            <button class="icon-btn" type="button" data-zoom="out" aria-label="Zoom out">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" /></svg>
+            </button>
+            <button class="icon-btn" type="button" data-zoom="reset" aria-label="Reset zoom">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 15v5h-5M4 4l6 6M20 20l-6-6" /></svg>
+            </button>
+          </div>
+          <label class="borders-toggle">
+            <input type="checkbox" id="borders-toggle">
+            <span>Borders</span>
+          </label>
+          <div class="map-loading" id="map-loading">Loading map…</div>
+        </div>
+
+        <div class="panel" id="panel" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Map data: Natural Earth</span>
+      <span>Not affiliated with any airline or airport</span>
+    </footer>
+  </div>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <noscript><p class="noscript">Pinpoint Airports needs JavaScript to run.</p></noscript>
+</body>
+</html>
