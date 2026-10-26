@@ -6,7 +6,7 @@
   <title>Pinpoint Airports</title>
   <meta name="description" content="A three-letter airport code appears on the departures board. Drop a pin on a blank world map — the closer you land, the more points you score.">
   <meta property="og:title" content="Pinpoint Airports">
-  <meta property="og:description" content="Find the airport from its three-letter code on a blank world map. Five rounds, up to 1,000 points each.">
+  <meta property="og:description" content="Find the airport from its three-letter code on a blank world map. Play 5 rounds, 10, or unlimited, up to 1,000 points each.">
   <meta property="og:type" content="website">
   <meta name="theme-color" content="#f2eee6" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)">
@@ -40,7 +40,7 @@
     <main>
       <!-- Start screen -->
       <section class="screen" id="home">
-        <p class="kicker" id="home-kicker">Map games · Daily</p>
+        <p class="kicker">Map games · Airports</p>
         <h1>Find the airport.</h1>
 
         <div class="board board-demo" aria-hidden="true">
@@ -51,16 +51,19 @@
           <div class="flaps" id="demo-flaps"></div>
         </div>
 
-        <p class="lede">A three-letter airport code flips onto the board. Drop a pin where you think that airport is on a blank world map. The closer you land, the more points you earn.</p>
+        <p class="lede">A three-letter airport code flips onto the board. Drop a pin where you think that airport is on a blank world map. The closer you land, the more points you earn. Play five rounds, ten, or keep flying until you've had enough.</p>
 
-        <div class="actions">
-          <button class="btn btn-primary" id="play-daily" type="button">Start today's flight →</button>
-          <p class="daily-note" id="daily-note"></p>
-        </div>
-
-        <div class="random-block">
-          <div class="random-head">
-            <span class="kicker">Random flight</span>
+        <div class="setup">
+          <div class="setup-row">
+            <span class="setup-label">Rounds</span>
+            <div class="seg" role="group" aria-label="Number of rounds" id="length">
+              <button type="button" data-length="5">5</button>
+              <button type="button" data-length="10">10</button>
+              <button type="button" data-length="0">Unlimited</button>
+            </div>
+          </div>
+          <div class="setup-row">
+            <span class="setup-label">Difficulty</span>
             <div class="seg" role="group" aria-label="Difficulty" id="difficulty">
               <button type="button" data-difficulty="easy">Easy</button>
               <button type="button" data-difficulty="normal">Normal</button>
@@ -68,7 +71,7 @@
             </div>
           </div>
           <p class="difficulty-note" id="difficulty-note"></p>
-          <button class="btn btn-secondary" id="play-random" type="button">Random flight →</button>
+          <button class="btn btn-primary" id="play" type="button">Start flight →</button>
         </div>
 
         <dl class="rules" id="rules"></dl>

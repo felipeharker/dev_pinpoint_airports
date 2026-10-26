@@ -2,10 +2,10 @@
 
 A geography game: a three-letter IATA airport code flips onto a split-flap departures board, and you drop a pin where you think that airport is on a blank world map. The closer you land, the more points you score.
 
-- **5 rounds**, up to **1,000 points** each (5,000 max)
-- Within 20 km scores full marks; beyond that, points decay exponentially (about 375 points at 1,000 km)
-- **Daily flight**: the same five airports for everyone each day, ramping from famous hubs to a deep cut
-- **Random flight**: Easy (world-famous hubs), Normal (major international airports), or Hard (regional, remote, and oddball airports)
+- Pick a game length: **5 rounds**, **10 rounds**, or **unlimited** (play until you hit *End game*)
+- Up to **1,000 points** per round. Within 20 km scores full marks; beyond that, points decay exponentially (about 375 points at 1,000 km)
+- Pick a difficulty: Easy (world-famous hubs), Normal (major international airports), or Hard (regional, remote, and oddball airports)
+- Airports never repeat within a game until the whole difficulty pool has been used
 - Zoom and pan the map, toggle country borders on if you want an easier game, and switch between miles and kilometres
 - After each guess the map draws the great-circle route from your pin to the airport and shades the country it's in
 

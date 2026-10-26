@@ -2,7 +2,6 @@
 (() => {
   'use strict';
 
-  const ROUNDS = 5;
   const MAX_POINTS = 1000;
   const PERFECT_KM = 20;     // closer than this scores full marks
   const FALLOFF_KM = 1000;   // beyond that, points decay by 1/e every 1,000 km
@@ -10,14 +9,14 @@
   const EARTH_RADIUS_KM = 6371.0088;
   const WORLD_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-50m.json';
 
-  // Daily flights ramp up: two famous hubs, two major airports, one deep cut.
-  const DAILY_TIERS = [[1], [1], [2], [2], [3]];
+  const LENGTHS = [5, 10, 0];  // 0 = unlimited
   const DIFFICULTY = {
-    easy: { tiers: [1], note: 'World-famous hubs — LHR, JFK, HND and friends.' },
-    normal: { tiers: [1, 2], note: 'Big international airports from every continent.' },
-    hard: { tiers: [2, 3], note: 'Regional, remote and oddball airports. Good luck with MPN.' },
+    easy: { label: 'Easy', tiers: [1], note: 'World-famous hubs — LHR, JFK, HND and friends.' },
+    normal: { label: 'Normal', tiers: [1, 2], note: 'Big international airports from every continent.' },
+    hard: { label: 'Hard', tiers: [2, 3], note: 'Regional, remote and oddball airports. Good luck with MPN.' },
   };
   const DEMO_CODES = ['LHR', 'JFK', 'HND', 'CDG', 'SYD', 'DXB', 'GRU', 'SIN', 'LAX', 'CPT', 'KEF', 'AKL'];
+  const SHARE_SQUARES = 25;
 
   const COUNTRY_NAMES = window.COUNTRY_NAMES;
   const AIRPORTS = window.AIRPORT_DATA.map(([code, name, city, cc, lat, lon, tier]) => ({ code, name, city, cc, lat, lon, tier }));
@@ -42,34 +41,16 @@
   };
 
   // ---------- Helpers ----------
-  function todayKey() {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  }
-
-  function seededRandom(text) {
-    let h = 1779033703 ^ text.length;
-    for (let i = 0; i < text.length; i++) {
-      h = Math.imul(h ^ text.charCodeAt(i), 3432918353);
-      h = (h << 13) | (h >>> 19);
-    }
-    let a = h >>> 0;
+  // Draws airports without repeats; once the pool is used up it reshuffles (never repeating back-to-back).
+  function makeAirportPicker(tiers) {
+    const pool = AIRPORTS.filter((a) => tiers.includes(a.tier));
+    let remaining = [];
+    let last = null;
     return () => {
-      a = (a + 0x6d2b79f5) | 0;
-      let t = Math.imul(a ^ (a >>> 15), 1 | a);
-      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      if (!remaining.length) remaining = pool.filter((a) => a !== last);
+      last = remaining.splice(Math.floor(Math.random() * remaining.length), 1)[0];
+      return last;
     };
-  }
-
-  function pickAirports(rand, tiersPerRound) {
-    const used = new Set();
-    return tiersPerRound.map((tiers) => {
-      const pool = AIRPORTS.filter((a) => tiers.includes(a.tier) && !used.has(a.code));
-      const airport = pool[Math.floor(rand() * pool.length)];
-      used.add(airport.code);
-      return airport;
-    });
   }
 
   const lonLat = (a) => [a.lon, a.lat];
@@ -101,8 +82,8 @@
     return '🟥';
   }
 
-  function rating(total) {
-    const share = total / (ROUNDS * MAX_POINTS);
+  function rating(total, rounds) {
+    const share = rounds ? total / (rounds * MAX_POINTS) : 0;
     if (share >= 0.92) return 'Air traffic controller';
     if (share >= 0.78) return 'Captain';
     if (share >= 0.62) return 'First officer';
@@ -111,7 +92,9 @@
     return 'Lost luggage';
   }
 
+  const lengthLabel = (length) => (length ? `${length} rounds` : 'Unlimited');
   const placeName = (a) => `${a.city}, ${COUNTRY_NAMES[a.cc] || a.cc}`;
+  const plural = (n, word) => `${fmtInt(n)} ${word}${n === 1 ? '' : 's'}`;
 
   const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -130,6 +113,7 @@
     const token = {};
     el._flapToken = token;
     el.setAttribute('aria-label', label);
+    el.classList.toggle('small', chars.length > 4);
     el.innerHTML = chars.map(() => '<span class="flap" aria-hidden="true"><span class="flap-char"></span></span>').join('');
     const cells = [...el.querySelectorAll('.flap-char')];
 
@@ -330,24 +314,28 @@
   // ---------- State ----------
   let units = store.get('ppa:units', 'mi') === 'km' ? 'km' : 'mi';
   let difficulty = DIFFICULTY[store.get('ppa:difficulty', 'normal')] ? store.get('ppa:difficulty', 'normal') : 'normal';
+  let roundCount = LENGTHS.includes(store.get('ppa:length', 5)) ? store.get('ppa:length', 5) : 5;
   let state = null;
   let demoTimer = null;
 
-  const dailyStoreKey = (dateKey) => `ppa:daily:${dateKey}`;
-
-  function loadDailyResults(dateKey, airports) {
-    const saved = store.get(dailyStoreKey(dateKey), []);
-    if (!Array.isArray(saved)) return [];
-    // Discard progress if the airport list changed since it was saved.
-    const valid = saved.every((r, i) => airports[i] && r && r.code === airports[i].code && Array.isArray(r.guess));
-    return valid ? saved.slice(0, ROUNDS) : [];
-  }
-
-  function dailyAirports(dateKey) {
-    return pickAirports(seededRandom(`pinpoint-airports:${dateKey}`), DAILY_TIERS);
-  }
-
   const totalOf = (results) => results.reduce((sum, r) => sum + r.points, 0);
+
+  function loadStats() {
+    const raw = store.get('ppa:stats', {}) || {};
+    return {
+      played: Number(raw.played) || 0,
+      best: raw.best && typeof raw.best === 'object' ? { ...raw.best } : {},
+      longest: Number(raw.longest) || 0,
+    };
+  }
+
+  function recordStats() {
+    const stats = loadStats();
+    stats.played += 1;
+    if (state.length) stats.best[state.length] = Math.max(stats.best[state.length] || 0, totalOf(state.results));
+    else stats.longest = Math.max(stats.longest, state.results.length);
+    store.set('ppa:stats', stats);
+  }
 
   // ---------- Screens ----------
   function showScreen(name) {
@@ -359,22 +347,14 @@
   }
 
   function renderHome() {
-    const dateKey = todayKey();
-    $('home-kicker').textContent = `Map games · Daily · ${dateKey}`;
-
-    const results = loadDailyResults(dateKey, dailyAirports(dateKey));
-    const done = results.length >= ROUNDS;
-    $('play-daily').textContent = done
-      ? 'See today’s result →'
-      : results.length ? `Resume today’s flight (${results.length}/${ROUNDS}) →` : 'Start today’s flight →';
-    $('daily-note').textContent = done
-      ? `Today: ${fmtInt(totalOf(results))} / ${fmtInt(ROUNDS * MAX_POINTS)} · new flight at midnight`
-      : 'Same five airports for everyone today';
-
+    document.querySelectorAll('#length button').forEach((b) => {
+      b.setAttribute('aria-pressed', String(Number(b.dataset.length) === roundCount));
+    });
     document.querySelectorAll('#difficulty button').forEach((b) => {
       b.setAttribute('aria-pressed', String(b.dataset.difficulty === difficulty));
     });
     $('difficulty-note').textContent = DIFFICULTY[difficulty].note;
+    $('play').textContent = roundCount ? `Start ${roundCount}-round flight →` : 'Start unlimited flight →';
 
     const examples = [PERFECT_KM, 250, 1000, 3000];
     $('rules').innerHTML = examples.map((km) => {
@@ -382,10 +362,14 @@
       return `<div><dt>${escapeHtml(label)}</dt><dd>${fmtInt(scoreFor(km))} pts</dd></div>`;
     }).join('');
 
-    const stats = store.get('ppa:stats', { played: 0, best: 0 });
-    $('stats').textContent = stats.played
-      ? `Flights flown · ${fmtInt(stats.played)}    Best · ${fmtInt(stats.best)}`
-      : `${ROUNDS} rounds · up to ${fmtInt(MAX_POINTS)} points each · ${AIRPORTS.length} airports`;
+    const stats = loadStats();
+    const parts = [];
+    if (stats.played) parts.push(`Flights flown · ${fmtInt(stats.played)}`);
+    LENGTHS.filter(Boolean).forEach((n) => { if (stats.best[n]) parts.push(`Best ${n} · ${fmtInt(stats.best[n])}`); });
+    if (stats.longest) parts.push(`Longest unlimited · ${plural(stats.longest, 'round')}`);
+    $('stats').textContent = parts.length
+      ? parts.join('    ')
+      : `Up to ${fmtInt(MAX_POINTS)} points a round · ${AIRPORTS.length} airports`;
 
     startDemo();
   }
@@ -409,36 +393,31 @@
   }
 
   // ---------- Game flow ----------
-  function startGame(mode) {
-    if (mode === 'daily') {
-      const dateKey = todayKey();
-      const airports = dailyAirports(dateKey);
-      const results = loadDailyResults(dateKey, airports);
-      state = { mode, dateKey, airports, results, index: results.length, phase: 'guess', guess: null };
-    } else {
-      const tiers = DIFFICULTY[difficulty].tiers;
-      state = {
-        mode,
-        difficulty,
-        airports: pickAirports(Math.random, Array.from({ length: ROUNDS }, () => tiers)),
-        results: [],
-        index: 0,
-        phase: 'guess',
-        guess: null,
-      };
-    }
+  function startGame() {
+    state = {
+      length: roundCount,
+      difficulty,
+      nextAirport: makeAirportPicker(DIFFICULTY[difficulty].tiers),
+      airports: [],
+      results: [],
+      index: 0,
+      phase: 'guess',
+      guess: null,
+    };
     showScreen('game');
-    if (state.index >= ROUNDS) showSummary();
-    else startRound();
+    startRound();
   }
+
+  const isLastRound = () => state.length > 0 && state.index === state.length - 1;
 
   function startRound() {
     state.phase = 'guess';
     state.guess = null;
+    if (!state.airports[state.index]) state.airports[state.index] = state.nextAirport();
     const airport = state.airports[state.index];
     updateStatus();
     $('board-label').textContent = 'Find this airport';
-    $('board-sub').textContent = state.mode === 'daily' ? `Daily · ${state.dateKey}` : `Random · ${state.difficulty}`;
+    $('board-sub').textContent = `${lengthLabel(state.length)} · ${DIFFICULTY[state.difficulty].label}`;
     setFlaps($('flaps'), airport.code, { label: `Airport code ${airport.code.split('').join(' ')}` });
     map.reset();
     map.setPickHandler((ll) => {
@@ -453,46 +432,45 @@
     if (!state || state.phase !== 'guess' || !state.guess) return;
     const airport = state.airports[state.index];
     const km = distanceKm(state.guess, lonLat(airport));
-    const points = scoreFor(km);
-    state.results.push({ code: airport.code, guess: state.guess.map((v) => +v.toFixed(4)), km: Math.round(km), points });
+    state.results.push({ code: airport.code, guess: state.guess, km: Math.round(km), points: scoreFor(km) });
     state.phase = 'reveal';
     map.setPickHandler(null);
     map.reveal(state.guess, airport);
-    if (state.mode === 'daily') store.set(dailyStoreKey(state.dateKey), state.results);
     updateStatus();
     renderPanel();
-    if (state.results.length === ROUNDS) recordStats();
   }
 
   function nextRound() {
     if (!state || state.phase !== 'reveal') return;
+    if (isLastRound()) { showSummary(); return; }
     state.index += 1;
-    if (state.index >= ROUNDS) showSummary();
-    else startRound();
+    startRound();
   }
 
-  function recordStats() {
-    const stats = store.get('ppa:stats', { played: 0, best: 0 });
-    const total = totalOf(state.results);
-    store.set('ppa:stats', { played: (stats.played || 0) + 1, best: Math.max(stats.best || 0, total) });
+  function endGame() {
+    if (state && state.phase === 'reveal') showSummary();
   }
 
   function showSummary() {
     state.phase = 'summary';
-    state.index = ROUNDS;
     const total = totalOf(state.results);
     updateStatus();
     $('board-label').textContent = 'Final score';
-    $('board-sub').textContent = rating(total);
+    $('board-sub').textContent = rating(total, state.results.length);
     setFlaps($('flaps'), String(total), { label: `Final score ${total}` });
     map.setPickHandler(null);
     map.showAll(state.results.map((r, i) => ({ guess: r.guess, airport: state.airports[i] })));
+    recordStats();
     renderPanel();
   }
 
   function updateStatus() {
-    const round = Math.min(state.index + 1, ROUNDS);
-    $('round-label').textContent = state.phase === 'summary' ? `Complete · ${ROUNDS} / ${ROUNDS}` : `Round ${round} / ${ROUNDS}`;
+    const played = state.results.length;
+    let label;
+    if (state.phase === 'summary') label = `Complete · ${plural(played, 'round')}`;
+    else if (state.length) label = `Round ${state.index + 1} / ${state.length}`;
+    else label = `Round ${state.index + 1} · Unlimited`;
+    $('round-label').textContent = label;
     $('score-label').textContent = `Score · ${fmtInt(totalOf(state.results))}`;
   }
 
@@ -514,8 +492,12 @@
     if (state.phase === 'reveal') {
       const airport = state.airports[state.index];
       const result = state.results[state.index];
-      const last = state.index === ROUNDS - 1;
-      const soFar = (state.index + 1) * MAX_POINTS;
+      const soFar = state.results.length * MAX_POINTS;
+      const next = isLastRound()
+        ? '<button class="btn btn-primary" type="button" data-action="next">See results →</button>'
+        : '<button class="btn btn-primary" type="button" data-action="next">Next round →</button>';
+      // Unlimited games end when the player says so.
+      const end = state.length ? '' : '<button class="btn btn-secondary" type="button" data-action="end">End game</button>';
       panel.innerHTML = `
         <div class="card result">
           <div class="span-2"><div class="label">Airport</div><div class="value big"><span class="code">${airport.code}</span> · ${escapeHtml(airport.name)}</div></div>
@@ -524,14 +506,17 @@
           <div><div class="label">Round score</div><div class="value ${scoreClass(result.points)}">+${fmtInt(result.points)}</div></div>
           <div class="span-2 total"><div class="label">Running total</div><div class="value">${fmtInt(totalOf(state.results))} / ${fmtInt(soFar)}</div></div>
         </div>
-        <button class="btn btn-primary" type="button" data-action="next">${last ? 'See results →' : 'Next round →'}</button>`;
+        ${end ? `<div class="actions-row">${next}${end}</div>` : next}`;
       panel.querySelector('[data-action="next"]').focus({ preventScroll: true });
       return;
     }
 
     // Summary
     const total = totalOf(state.results);
-    const heading = state.mode === 'daily' ? `Today’s flight · ${state.dateKey}` : `Random flight · ${state.difficulty}`;
+    const rounds = state.results.length;
+    const heading = state.length
+      ? `${state.length}-round flight · ${DIFFICULTY[state.difficulty].label}`
+      : `Unlimited flight · ${plural(rounds, 'round')} · ${DIFFICULTY[state.difficulty].label}`;
     const legs = state.results.map((r, i) => {
       const airport = state.airports[i];
       return `<li>
@@ -545,27 +530,34 @@
       <div class="card">
         <div class="label">${escapeHtml(heading)}</div>
         <div class="summary-head">
-          <div class="summary-total">${fmtInt(total)} <span>/ ${fmtInt(ROUNDS * MAX_POINTS)}</span></div>
-          <div class="rating">${escapeHtml(rating(total))}</div>
+          <div>
+            <div class="summary-total">${fmtInt(total)} <span>/ ${fmtInt(rounds * MAX_POINTS)}</span></div>
+            <div class="summary-avg">Average ${fmtInt(total / rounds)} per round</div>
+          </div>
+          <div class="rating">${escapeHtml(rating(total, rounds))}</div>
         </div>
-        <ol class="legs">${legs}</ol>
+        <ol class="legs${rounds > 10 ? ' long' : ''}">${legs}</ol>
       </div>
       <div class="actions-row">
-        <button class="btn btn-primary" type="button" data-action="share">Share result</button>
-        <button class="btn btn-secondary" type="button" data-action="random">Random flight →</button>
+        <button class="btn btn-primary" type="button" data-action="again">Play again →</button>
+        <button class="btn btn-secondary" type="button" data-action="share">Share result</button>
       </div>
-      ${state.mode === 'daily' ? '<p class="footnote">A new daily flight boards at midnight</p>' : ''}`;
+      <button class="btn-link" type="button" data-action="home">Change rounds or difficulty</button>`;
   }
 
   function shareText() {
     const total = totalOf(state.results);
-    const title = state.mode === 'daily' ? `Pinpoint Airports · ${state.dateKey}` : `Pinpoint Airports · random (${state.difficulty})`;
-    const squares = state.results.map((r) => scoreSquare(r.points)).join('');
-    const codes = state.airports.map((a) => a.code).join(' ');
-    const lines = [title, `✈ ${fmtInt(total)} / ${fmtInt(ROUNDS * MAX_POINTS)} — ${rating(total)}`, squares];
-    if (state.mode !== 'daily') lines.push(codes);
-    lines.push(location.origin + location.pathname);
-    return lines.join('\n');
+    const rounds = state.results.length;
+    const squares = state.results.map((r) => scoreSquare(r.points));
+    const squareLine = squares.length > SHARE_SQUARES
+      ? `${squares.slice(0, SHARE_SQUARES).join('')}…`
+      : squares.join('');
+    return [
+      `Pinpoint Airports · ${state.length ? `${state.length} rounds` : `unlimited (${plural(rounds, 'round')})`} · ${DIFFICULTY[state.difficulty].label}`,
+      `✈ ${fmtInt(total)} / ${fmtInt(rounds * MAX_POINTS)} — ${rating(total, rounds)}`,
+      squareLine,
+      location.origin + location.pathname,
+    ].join('\n');
   }
 
   async function share() {
@@ -599,13 +591,25 @@
     else renderPanel();
   }
 
+  function goHome() {
+    state = null;
+    showScreen('home');
+  }
+
   function bind() {
-    $('play-daily').addEventListener('click', () => startGame('daily'));
-    $('play-random').addEventListener('click', () => startGame('random'));
-    $('back').addEventListener('click', () => { state = null; showScreen('home'); });
-    $('brand').addEventListener('click', (e) => { e.preventDefault(); state = null; showScreen('home'); });
+    $('play').addEventListener('click', startGame);
+    $('back').addEventListener('click', goHome);
+    $('brand').addEventListener('click', (e) => { e.preventDefault(); goHome(); });
 
     document.querySelectorAll('.units button').forEach((b) => b.addEventListener('click', () => setUnits(b.dataset.units)));
+
+    $('length').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-length]');
+      if (!btn) return;
+      roundCount = Number(btn.dataset.length);
+      store.set('ppa:length', roundCount);
+      renderHome();
+    });
 
     $('difficulty').addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-difficulty]');
@@ -621,8 +625,10 @@
       const action = btn.dataset.action;
       if (action === 'lock') lockIn();
       else if (action === 'next') nextRound();
+      else if (action === 'end') endGame();
       else if (action === 'share') share();
-      else if (action === 'random') startGame('random');
+      else if (action === 'again') startGame();
+      else if (action === 'home') goHome();
     });
 
     document.querySelector('.map-tools').addEventListener('click', (e) => {

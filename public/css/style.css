@@ -292,33 +292,45 @@ h1 {
   outline-offset: 2px;
 }
 
-.actions { display: grid; gap: 10px; }
-
-.daily-note {
-  margin: 0;
+.btn-link {
+  justify-self: center;
+  border: 0;
+  background: none;
+  padding: 6px 4px;
   font-family: var(--font-mono);
   font-size: 11px;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
-  text-align: center;
-  min-height: 1.4em;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
+.btn-link:hover { color: var(--ink); }
+.btn-link:focus-visible { outline: 2px solid var(--target); outline-offset: 2px; }
 
-/* ---------- Random block ---------- */
-.random-block {
-  margin-top: 26px;
-  padding-top: 20px;
+/* ---------- Game setup ---------- */
+.setup {
+  padding-top: 18px;
   border-top: 1px solid var(--rule);
   display: grid;
   gap: 12px;
 }
 
-.random-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.seg { display: inline-flex; border: 1px solid var(--rule); }
-.seg button { padding: 7px 11px; }
+.setup-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
-.difficulty-note { margin: 0; color: var(--muted); font-size: 14px; }
+.setup-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.seg { display: inline-flex; border: 1px solid var(--rule); }
+.seg button { padding: 8px 12px; min-width: 44px; }
+
+.difficulty-note { margin: 0 0 4px; color: var(--muted); font-size: 14px; }
 
 /* ---------- Rules ---------- */
 .rules {
@@ -518,7 +530,10 @@ h1 {
 .summary-total span { font-size: 16px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
 .rating { font-family: var(--font-sans); font-weight: 700; font-size: 20px; letter-spacing: -0.01em; }
 
+.summary-avg { margin-top: 2px; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+
 .legs { list-style: none; margin: 14px 0 0; padding: 0; border-top: 1px solid var(--rule); }
+.legs.long { max-height: 460px; overflow-y: auto; padding-right: 10px; }
 .legs li {
   display: grid;
   grid-template-columns: 48px 1fr auto auto;
