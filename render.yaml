@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: pinpoint-airports
+    name: dev-pinpoint-airports
     runtime: static
     buildCommand: ""
     staticPublishPath: ./public
